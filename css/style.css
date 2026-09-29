@@ -1,0 +1,422 @@
+/* ============================================================
+   Lector web — Los juegos del hambre
+   Modo de lectura oscuro, optimizado para tacto/móvil.
+   ============================================================ */
+
+:root{
+  --bg: #050505;
+  --bg-page: #0b0b0b;
+  --bg-page-back: #161616;
+  --text: #e9e6df;
+  --text-dim: #a8a49b;
+  --accent: #c9a15a;
+  --chrome-bg: rgba(10,10,10,0.86);
+  --border: rgba(255,255,255,0.08);
+  --font-scale: 1;
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  box-sizing: border-box;
+}
+
+*{ box-sizing: inherit; -webkit-tap-highlight-color: transparent; }
+
+html, body{
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  overscroll-behavior: none;
+}
+
+body{
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+  overflow: hidden;
+  touch-action: none;
+}
+
+#app{
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+/* ---------- Barras (chrome) ---------- */
+.chrome{
+  position: fixed;
+  left: 0; right: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--chrome-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 40;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .25s ease, transform .25s ease;
+}
+
+#app.chrome-visible .chrome{
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#top-bar{
+  top: 0;
+  padding-top: calc(10px + var(--safe-t));
+  border-bottom: 1px solid var(--border);
+  transform: translateY(-100%);
+}
+#app.chrome-visible #top-bar{ transform: translateY(0); }
+
+#bottom-bar{
+  bottom: 0;
+  padding-bottom: calc(10px + var(--safe-b));
+  border-top: 1px solid var(--border);
+  transform: translateY(100%);
+}
+#app.chrome-visible #bottom-bar{ transform: translateY(0); }
+
+#chapter-label{
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: .04em;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon-btn{
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  border-radius: 10px;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.icon-btn:active{ background: rgba(255,255,255,0.08); }
+
+#progress-wrap{
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+#progress-slider{
+  width: 100%;
+  accent-color: var(--accent);
+}
+#page-indicator{
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: .03em;
+}
+
+/* ---------- Zona de lectura ---------- */
+#viewport{
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  padding-left: var(--safe-l);
+  padding-right: var(--safe-r);
+}
+
+#stage{
+  position: absolute;
+  inset: 0;
+  perspective: 1800px;
+  perspective-origin: 50% 50%;
+}
+
+.page-slot{
+  position: absolute;
+  inset: 0;
+  background: var(--bg-page);
+  overflow: hidden;
+}
+
+#page-under{ z-index: 1; }
+
+#drop-shadow{
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: transparent;
+}
+
+.leaf{
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  transform-style: preserve-3d;
+  transform-origin: 100% 50%; /* borde derecho: avanzar página */
+  will-change: transform;
+}
+.leaf.origin-left{ transform-origin: 0% 50%; } /* retroceder página */
+
+.leaf-face{
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.leaf-front{ z-index: 2; }
+.leaf-back{
+  z-index: 1;
+  transform: rotateY(180deg);
+  background: linear-gradient(120deg, var(--bg-page-back), #0e0e0e 60%, var(--bg-page-back));
+}
+/* La sombra siempre se oscurece hacia el borde libre (el que se está
+   levantando), y queda transparente en la bisagra. Bisagra por defecto
+   a la derecha (página anterior) → borde libre a la izquierda. */
+.leaf-shadow{
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(270deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.55) 100%);
+}
+/* Bisagra a la izquierda (página siguiente) → borde libre a la derecha */
+.leaf.origin-left .leaf-shadow{
+  background: linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.55) 100%);
+}
+
+/* Contenido de una página: texto real, siempre en prosa continua */
+.page-content{
+  position: absolute;
+  inset: 0;
+  padding: 28px clamp(18px, 6vw, 48px);
+  padding-top: calc(28px + var(--safe-t));
+  padding-bottom: calc(28px + var(--safe-b));
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-content .book-title-block{
+  margin: auto 0;
+  text-align: center;
+}
+.page-content .book-title-block .t-author{
+  letter-spacing: .18em;
+  font-size: calc(15px * var(--font-scale));
+  color: var(--text-dim);
+  margin-bottom: 1.4em;
+}
+.page-content .book-title-block .t-title{
+  font-size: calc(30px * var(--font-scale));
+  line-height: 1.25;
+  letter-spacing: .03em;
+}
+.page-content .book-title-block .t-translator{
+  margin-top: 1.6em;
+  font-size: calc(13px * var(--font-scale));
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.page-content .legal-block{
+  margin: auto 0;
+  font-size: calc(11px * var(--font-scale));
+  line-height: 1.7;
+  color: var(--text-dim);
+}
+.page-content .legal-block p{ margin: 0 0 0.9em 0; }
+
+.page-content .dedication-block{
+  margin: auto 0;
+  text-align: center;
+  font-style: italic;
+  font-size: calc(17px * var(--font-scale));
+  color: var(--text-dim);
+}
+
+.page-content .part-block{
+  margin: auto 0;
+  text-align: center;
+}
+.page-content .part-block .p-label{
+  font-size: calc(22px * var(--font-scale));
+  letter-spacing: .12em;
+  color: var(--accent);
+}
+.page-content .part-block .p-title{
+  margin-top: .5em;
+  font-size: calc(15px * var(--font-scale));
+  letter-spacing: .1em;
+  color: var(--text-dim);
+}
+
+.page-content h3.chapter-heading{
+  font-weight: normal;
+  font-size: calc(15px * var(--font-scale));
+  letter-spacing: .08em;
+  color: var(--accent);
+  text-align: center;
+  margin: 0 0 1.1em 0;
+  padding-bottom: .6em;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.page-body{
+  flex: 1 1 auto;
+  overflow: hidden;
+  font-size: calc(17px * var(--font-scale));
+  line-height: 1.62;
+  text-align: left;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+  word-spacing: normal;
+  letter-spacing: normal;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.page-body p{
+  margin: 0 0 0.95em 0;
+  text-indent: 1.4em;
+}
+.page-body p.cont{ text-indent: 0; }
+.page-body p:first-child{ text-indent: 1.4em; }
+
+.page-body .verse{
+  margin: 0.9em 0 0.9em 1.4em;
+  font-style: italic;
+  color: var(--text-dim);
+}
+.page-body .verse p{
+  text-indent: 0;
+  margin: 0 0 0.35em 0;
+}
+
+.page-footer-num{
+  flex: 0 0 auto;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-dim);
+  opacity: .55;
+  padding-top: .6em;
+}
+
+/* ---------- Zonas de toque ---------- */
+.tap-zone{
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 18%;
+  z-index: 10;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+}
+#tap-prev{ left: 0; }
+#tap-next{ right: 0; }
+
+/* ---------- Índice ---------- */
+.overlay{
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  justify-content: flex-end;
+}
+.overlay.hidden{ display: none; }
+
+#toc-panel{
+  width: min(360px, 86vw);
+  height: 100%;
+  background: #0a0a0a;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--safe-t);
+  padding-bottom: var(--safe-b);
+}
+#toc-header{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+#toc-header h2{
+  font-size: 15px;
+  font-weight: normal;
+  letter-spacing: .06em;
+  margin: 0;
+  color: var(--text-dim);
+}
+#toc-list{
+  overflow-y: auto;
+  padding: 6px 0;
+}
+.toc-item{
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text);
+  padding: 12px 18px;
+  font-size: 15px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.toc-item:active{ background: rgba(255,255,255,0.06); }
+.toc-item.part-item{
+  color: var(--accent);
+  font-size: 12px;
+  letter-spacing: .1em;
+  padding-top: 18px;
+  padding-bottom: 4px;
+  border-bottom: none;
+}
+
+/* ---------- Medidor invisible (paginación) ---------- */
+#measurer{
+  position: fixed;
+  top: 0;
+  left: -99999px;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ---------- Carga ---------- */
+#app.loading #viewport{ opacity: 0; }
+.loading-msg{
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 13px;
+  letter-spacing: .1em;
+  z-index: 5;
+}
+
+/* ---------- Responsive ---------- */
+@media (min-width: 900px){
+  .page-content{ padding-left: 12%; padding-right: 12%; }
+}

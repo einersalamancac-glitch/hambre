@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Los juegos del hambre — Lector</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Contenedor principal del libro -->
+  <div id="app">
+
+    <!-- Barra superior (aparece al tocar) -->
+    <header id="top-bar" class="chrome">
+      <button id="btn-toc" class="icon-btn" aria-label="Índice" title="Índice">☰</button>
+      <div id="chapter-label">Los juegos del hambre</div>
+      <button id="btn-fullscreen" class="icon-btn" aria-label="Pantalla completa" title="Pantalla completa">⛶</button>
+    </header>
+
+    <!-- Zona de lectura -->
+    <main id="viewport">
+      <div id="stage">
+        <!-- página estática de abajo (destino del giro) -->
+        <div id="page-under" class="page-slot"></div>
+
+        <!-- hoja que se dobla/gira -->
+        <div id="leaf" class="leaf">
+          <div id="leaf-front" class="leaf-face leaf-front page-slot"></div>
+          <div id="leaf-back" class="leaf-face leaf-back"></div>
+          <div id="leaf-shadow" class="leaf-shadow"></div>
+        </div>
+
+        <!-- sombra de contacto proyectada sobre la página de abajo -->
+        <div id="drop-shadow"></div>
+      </div>
+
+      <!-- Zonas de toque para pasar de página sin arrastrar -->
+      <button id="tap-prev" class="tap-zone" aria-label="Página anterior"></button>
+      <button id="tap-next" class="tap-zone" aria-label="Página siguiente"></button>
+    </main>
+
+    <!-- Barra inferior (aparece al tocar) -->
+    <footer id="bottom-bar" class="chrome">
+      <button id="btn-text-minus" class="icon-btn" aria-label="Reducir letra" title="Reducir letra">A−</button>
+      <div id="progress-wrap">
+        <input id="progress-slider" type="range" min="0" max="1" step="1" value="0" aria-label="Ir a página">
+        <div id="page-indicator">Página 1 / 1</div>
+      </div>
+      <button id="btn-text-plus" class="icon-btn" aria-label="Aumentar letra" title="Aumentar letra">A+</button>
+    </footer>
+
+    <!-- Panel de índice -->
+    <div id="toc-overlay" class="overlay hidden">
+      <div id="toc-panel">
+        <div id="toc-header">
+          <h2>Índice</h2>
+          <button id="btn-toc-close" class="icon-btn" aria-label="Cerrar">✕</button>
+        </div>
+        <div id="toc-list"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Medidor invisible usado para paginar el texto -->
+  <div id="measurer" aria-hidden="true"></div>
+
+  <script src="js/book-data.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/paginator.js"></script>
+  <script src="js/page-turn.js"></script>
+  <script src="js/reader.js"></script>
+</body>
+</html>
